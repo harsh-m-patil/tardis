@@ -1,8 +1,8 @@
 import { Toaster } from "@tardis/ui/components/sonner";
+import { TooltipProvider } from "@tardis/ui/components/tooltip";
 import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
-import Header from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
 
 import "../index.css";
@@ -18,7 +18,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       },
       {
         name: "description",
-        content: "tardis is a web application",
+        content: "tardis – AI conversation platform",
       },
     ],
     links: [
@@ -40,10 +40,11 @@ function RootComponent() {
         disableTransitionOnChange
         storageKey="vite-ui-theme"
       >
-        <div className="grid grid-rows-[auto_1fr] h-svh">
-          <Header />
-          <Outlet />
-        </div>
+        <TooltipProvider>
+          <div className="h-svh bg-background">
+            <Outlet />
+          </div>
+        </TooltipProvider>
         <Toaster richColors />
       </ThemeProvider>
       <TanStackRouterDevtools position="bottom-left" />

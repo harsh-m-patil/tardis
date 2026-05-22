@@ -8,7 +8,8 @@
     "check-types": "tsc -b"
   },
   "dependencies": {
-    "@tardis/ai": "workspace:*"
+    "@tardis/ai": "workspace:*",
+    "@tardis/env": "workspace:*"
   },
   "devDependencies": {
     "@tardis/config": "workspace:*",
