@@ -88,4 +88,53 @@ describe("AI SDK", () => {
       { type: "request_end" },
     ]);
   });
+
+  it("emits raw request and response payloads from the provider boundary when hooks are provided", async () => {
+    const rawRequests: unknown[] = [];
+    const rawResponses: unknown[] = [];
+    const sdk = createAiSdk([
+      {
+        name: "test",
+        defaultModel: "test-model",
+        complete: async () => "unused",
+        async *stream(messages, options, telemetry) {
+          telemetry?.onRawRequest?.({ providerBody: { messages, options } });
+          yield { type: "response_start" } as const;
+          telemetry?.onRawResponse?.({ providerChunk: { id: "chunk-1", delta: "hello" } });
+          yield { type: "text_delta", text: "hello" } as const;
+          yield { type: "usage", usage: { totalTokens: 5 } } as const;
+          yield { type: "request_end" } as const;
+        },
+      },
+    ]);
+
+    const events = await collectEvents(
+      sdk.stream([{ role: "user", content: "Hi" }], {
+        provider: "test",
+        onRawRequest: (payload) => {
+          rawRequests.push(payload);
+        },
+        onRawResponse: (payload) => {
+          rawResponses.push(payload);
+        },
+      }),
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "response_start",
+      "first_token",
+      "text_delta",
+      "usage",
+      "request_end",
+    ]);
+    expect(rawRequests).toEqual([
+      {
+        providerBody: {
+          messages: [{ role: "user", content: "Hi" }],
+          options: { model: "test-model", temperature: undefined, maxTokens: undefined },
+        },
+      },
+    ]);
+    expect(rawResponses).toEqual([{ providerChunk: { id: "chunk-1", delta: "hello" } }]);
+  });
 });

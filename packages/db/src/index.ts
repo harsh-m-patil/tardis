@@ -21,14 +21,53 @@ export type InferenceStreamEvent =
   | { type: "usage"; usage: InferenceUsage }
   | { type: "request_end" };
 
+export type InferenceRawCaptureHooks = {
+  onRawRequest?: (payload: unknown) => void;
+  onRawResponse?: (payload: unknown) => void;
+};
+
 export type InferenceRuntime = {
   provider: string;
   model: string;
-  stream: (messages: Pick<Message, "role" | "content">[]) => AsyncIterable<InferenceStreamEvent>;
+  stream: (
+    messages: Pick<Message, "role" | "content">[],
+    telemetry?: InferenceRawCaptureHooks,
+  ) => AsyncIterable<InferenceStreamEvent>;
+};
+
+export type TelemetryConfig = {
+  preview?: {
+    maxLength?: number;
+    redact?: (value: string) => string | null;
+  };
+  captureRawPayloads?: boolean;
 };
 
 export type ContinueConversationOptions = {
   onTextChunk?: (chunk: string) => void | Promise<void>;
+  telemetry?: TelemetryConfig;
+};
+
+export type InspectionEvent = {
+  id: string;
+  inferenceRequestId: string;
+  sequenceNumber: number;
+  type: "response_start" | "first_token" | "usage" | "request_end";
+  createdAt: string;
+  payload: unknown;
+};
+
+export type InferenceRequestInspectionSummary = {
+  eventCount: number;
+  firstTokenLatencyMs: number | null;
+  totalDurationMs: number | null;
+  usage: InferenceUsage | null;
+};
+
+export type InferenceRequestInspection = {
+  inferenceRequest: schema.InferenceRequest;
+  events: InspectionEvent[];
+  summary: InferenceRequestInspectionSummary;
 };
 
 export function deriveConversationTitle(content: string, maxWords = 6, maxLength = 48) {
@@ -70,6 +109,17 @@ export function createDb(databaseUrl?: string) {
 async function fetchOne<T>(query: Promise<T[]>): Promise<T | undefined> {
   const [row] = await query;
   return row;
+}
+
+function createPreview(content: string, telemetry?: TelemetryConfig) {
+  const redacted = telemetry?.preview?.redact ? telemetry.preview.redact(content) : content;
+
+  if (redacted === null) {
+    return null;
+  }
+
+  const maxLength = telemetry?.preview?.maxLength ?? 200;
+  return redacted.slice(0, maxLength);
 }
 
 export async function migrate(db: ReturnType<typeof createDb>) {
@@ -124,10 +174,29 @@ export async function migrate(db: ReturnType<typeof createDb>) {
       status TEXT NOT NULL DEFAULT 'pending',
       input_preview TEXT,
       output_preview TEXT,
+      raw_request_json TEXT,
+      raw_response_json TEXT,
       started_at TEXT NOT NULL,
       ended_at TEXT
     )
   `);
+
+  for (const statement of [
+    "ALTER TABLE inference_requests ADD COLUMN raw_request_json TEXT",
+    "ALTER TABLE inference_requests ADD COLUMN raw_response_json TEXT",
+  ]) {
+    try {
+      await db.run(statement);
+    } catch (error) {
+      const causeText =
+        error && typeof error === "object" && "cause" in error ? String(error.cause) : "";
+      const detail = `${error instanceof Error ? error.message : String(error)} ${causeText}`.toLowerCase();
+
+      if (!detail.includes("duplicate column name")) {
+        throw error;
+      }
+    }
+  }
   await db.run(`
     CREATE TABLE IF NOT EXISTS inference_events (
       id TEXT PRIMARY KEY NOT NULL,
@@ -216,19 +285,28 @@ export async function continueConversation(
 
   const inferenceRequestId = randomUUID();
   const startedAt = new Date().toISOString();
+  const fallbackRawRequestPayload = {
+    provider: runtime.provider,
+    model: runtime.model,
+    messages: inferenceInput,
+  };
+  let rawRequestPayload: unknown = null;
+  const rawResponsePayloads: unknown[] = [];
   await db.insert(schema.inferenceRequests).values({
     id: inferenceRequestId,
     turnId,
     provider: runtime.provider,
     model: runtime.model,
     status: "pending",
-    inputPreview: userContent.slice(0, 200),
+    inputPreview: createPreview(userContent, options.telemetry),
+    rawRequestJson: null,
     startedAt,
   });
 
   let sequenceNumber = 0;
   let assistantContent = "";
   let assistantMessageId: string | null = null;
+  let usagePayload: InferenceUsage | undefined;
   const canonicalEventsSeen = new Set<"response_start" | "first_token" | "usage" | "request_end">();
 
   async function persistCanonicalEvent(
@@ -268,7 +346,14 @@ export async function continueConversation(
   }
 
   try {
-    for await (const event of runtime.stream(inferenceInput)) {
+    for await (const event of runtime.stream(inferenceInput, {
+      onRawRequest: (payload) => {
+        rawRequestPayload = payload;
+      },
+      onRawResponse: (payload) => {
+        rawResponsePayloads.push(payload);
+      },
+    })) {
       if (event.type === "response_start") {
         await persistCanonicalEvent("response_start");
         continue;
@@ -295,6 +380,7 @@ export async function continueConversation(
       }
 
       if (event.type === "usage") {
+        usagePayload = event.usage;
         await persistCanonicalEvent("usage", event.usage);
         continue;
       }
@@ -308,6 +394,7 @@ export async function continueConversation(
       await persistCanonicalEvent("response_start");
     }
     if (!canonicalEventsSeen.has("usage")) {
+      usagePayload = {};
       await persistCanonicalEvent("usage", {});
     }
     if (!canonicalEventsSeen.has("request_end")) {
@@ -316,9 +403,32 @@ export async function continueConversation(
 
     const completedAt = new Date().toISOString();
 
+    const fallbackRawResponsePayload = {
+      content: assistantContent,
+      usage: usagePayload ?? {},
+    };
+    const rawRequestJson = options.telemetry?.captureRawPayloads
+      ? JSON.stringify(rawRequestPayload ?? fallbackRawRequestPayload)
+      : null;
+    const rawResponseJson = options.telemetry?.captureRawPayloads
+      ? JSON.stringify(
+          rawResponsePayloads.length > 0
+            ? {
+                chunks: rawResponsePayloads,
+              }
+            : fallbackRawResponsePayload,
+        )
+      : null;
+
     await db
       .update(schema.inferenceRequests)
-      .set({ status: "completed", outputPreview: assistantContent.slice(0, 200), endedAt: completedAt })
+      .set({
+        status: "completed",
+        outputPreview: createPreview(assistantContent, options.telemetry),
+        rawRequestJson,
+        rawResponseJson,
+        endedAt: completedAt,
+      })
       .where(eq(schema.inferenceRequests.id, inferenceRequestId));
 
     assistantMessageId = randomUUID();
@@ -375,6 +485,38 @@ export async function listInferenceEvents(db: Db, inferenceRequestId: string) {
     .from(schema.inferenceEvents)
     .where(eq(schema.inferenceEvents.inferenceRequestId, inferenceRequestId))
     .orderBy(schema.inferenceEvents.sequenceNumber);
+}
+
+export async function getInferenceRequestInspection(
+  db: Db,
+  inferenceRequestId: string,
+): Promise<InferenceRequestInspection | null> {
+  const inferenceRequest = await fetchOne(
+    db.select().from(schema.inferenceRequests).where(eq(schema.inferenceRequests.id, inferenceRequestId)),
+  );
+
+  if (!inferenceRequest) {
+    return null;
+  }
+
+  const events: InspectionEvent[] = (await listInferenceEvents(db, inferenceRequestId)).map((event) => ({
+    id: event.id,
+    inferenceRequestId: event.inferenceRequestId,
+    sequenceNumber: event.sequenceNumber,
+    type: event.type,
+    createdAt: event.createdAt,
+    payload: event.payloadJson ? (JSON.parse(event.payloadJson) as unknown) : null,
+  }));
+  const { firstTokenLatencyMs, totalDurationMs } = computeLatencyFromEvents(events);
+  const usageEvent = events.find((event) => event.type === "usage");
+  const summary: InferenceRequestInspectionSummary = {
+    eventCount: events.length,
+    firstTokenLatencyMs,
+    totalDurationMs,
+    usage: (usageEvent?.payload as InferenceUsage | null | undefined) ?? null,
+  };
+
+  return { inferenceRequest, events, summary };
 }
 
 export async function getInferenceRequestMetrics(db: Db, inferenceRequestId: string) {

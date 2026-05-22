@@ -25,13 +25,24 @@ Provider-agnostic AI SDK with a buffered `complete()` API.
 ## Provider adapter contract
 
 ```ts
+type InferenceTelemetryHooks = {
+  onRawRequest?: (payload: unknown) => void;
+  onRawResponse?: (payload: unknown) => void;
+};
+
 type ProviderAdapter = {
   name: string;
   defaultModel: string;
   complete: (
     messages: { role: "system" | "user" | "assistant"; content: string }[],
     options: { model: string; temperature?: number; maxTokens?: number },
+    telemetry?: InferenceTelemetryHooks,
   ) => Promise<string>;
+  stream?: (
+    messages: { role: "system" | "user" | "assistant"; content: string }[],
+    options: { model: string; temperature?: number; maxTokens?: number },
+    telemetry?: InferenceTelemetryHooks,
+  ) => AsyncIterable<StreamEvent>;
 };
 ```
 
@@ -96,6 +107,8 @@ const openrouter = createOpenAICompatibleAdapter({
 ## Notes
 
 - `complete()` is buffered (non-streaming).
+- `stream()` normalizes canonical lifecycle events even when providers omit some of them.
+- `onRawRequest` / `onRawResponse` hooks let callers capture provider-boundary payloads for debugging.
 - OpenAI adapter uses the official `openai` SDK (Chat Completions API).
 - If `baseUrl` already ends with `/v1` (e.g. OpenRouter), SDK will not append another `/v1`.
 - Missing provider registration or API key throws explicit errors.

@@ -269,6 +269,206 @@ describe("Conversation API", () => {
     }
   });
 
+  it("GET /inference-requests/:id returns inspection detail for an Inference Request", async () => {
+    const createRes = await app.request("/conversations", { method: "POST" });
+    const { conversation } = await json(createRes);
+
+    const msgRes = await app.request(`/conversations/${conversation.id}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "Inspect this request" }),
+    });
+
+    expect(msgRes.status).toBe(201);
+    const { inferenceRequest } = await json(msgRes);
+
+    const inspectionRes = await app.request(`/inference-requests/${inferenceRequest.id}`);
+    expect(inspectionRes.status).toBe(200);
+
+    const inspectionBody = await json(inspectionRes);
+    expect(inspectionBody.inferenceRequest).toMatchObject({
+      id: inferenceRequest.id,
+      provider: expect.any(String),
+      model: expect.any(String),
+      status: "completed",
+      inputPreview: "Inspect this request",
+      outputPreview: "I am a deterministic test response.",
+    });
+    expect(inspectionBody.events).toHaveLength(4);
+    expect(inspectionBody.events.map((event: { type: string }) => event.type)).toEqual([
+      "response_start",
+      "first_token",
+      "usage",
+      "request_end",
+    ]);
+    expect(inspectionBody.events[0].payload).toBeNull();
+    expect(inspectionBody.events[2].payload).toEqual({});
+    expect(inspectionBody.events[2].payloadJson).toBeUndefined();
+    expect(inspectionBody.summary).toMatchObject({
+      eventCount: 4,
+      usage: {},
+      firstTokenLatencyMs: expect.any(Number),
+      totalDurationMs: expect.any(Number),
+    });
+  });
+
+  it("GET /inference-requests/:id returns safe previews by default without raw payloads", async () => {
+    const longPrompt = "secret ".repeat(50).trim();
+    const longResponse = "reply ".repeat(50).trim();
+    const customSdk = createAiSdk([
+      {
+        name: "openrouter",
+        defaultModel: "openai/gpt-4o",
+        complete: async () => longResponse,
+      },
+    ]);
+    const customDir = await mkdtemp(join(tmpdir(), "tardis-server-safe-preview-"));
+    const customApp = await createApp({
+      databaseUrl: `file:${join(customDir, "test.db")}`,
+      aiSdk: customSdk,
+      model: "openai/gpt-4o",
+    });
+
+    try {
+      const createRes = await customApp.request("/conversations", { method: "POST" });
+      const { conversation } = await json(createRes);
+
+      const msgRes = await customApp.request(`/conversations/${conversation.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: longPrompt }),
+      });
+
+      expect(msgRes.status).toBe(201);
+      const { inferenceRequest } = await json(msgRes);
+
+      const inspectionRes = await customApp.request(`/inference-requests/${inferenceRequest.id}`);
+      expect(inspectionRes.status).toBe(200);
+
+      const inspectionBody = await json(inspectionRes);
+      expect(inspectionBody.inferenceRequest.inputPreview).toHaveLength(200);
+      expect(inspectionBody.inferenceRequest.outputPreview).toHaveLength(200);
+      expect(inspectionBody.inferenceRequest.rawRequestJson).toBeNull();
+      expect(inspectionBody.inferenceRequest.rawResponseJson).toBeNull();
+    } finally {
+      await rm(customDir, { recursive: true, force: true });
+    }
+  });
+
+  it("GET /inference-requests/:id applies configured redaction before persisting previews", async () => {
+    const customSdk = createAiSdk([
+      {
+        name: "openrouter",
+        defaultModel: "openai/gpt-4o",
+        complete: async () => "assistant secret response",
+      },
+    ]);
+    const customDir = await mkdtemp(join(tmpdir(), "tardis-server-redaction-"));
+    const customApp = await createApp({
+      databaseUrl: `file:${join(customDir, "test.db")}`,
+      aiSdk: customSdk,
+      model: "openai/gpt-4o",
+      telemetry: {
+        preview: {
+          redact: (value) => value.replaceAll("secret", "[REDACTED]"),
+        },
+      },
+    });
+
+    try {
+      const createRes = await customApp.request("/conversations", { method: "POST" });
+      const { conversation } = await json(createRes);
+
+      const msgRes = await customApp.request(`/conversations/${conversation.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "user secret prompt" }),
+      });
+
+      expect(msgRes.status).toBe(201);
+      const { inferenceRequest } = await json(msgRes);
+
+      const inspectionRes = await customApp.request(`/inference-requests/${inferenceRequest.id}`);
+      expect(inspectionRes.status).toBe(200);
+
+      const inspectionBody = await json(inspectionRes);
+      expect(inspectionBody.inferenceRequest.inputPreview).toBe("user [REDACTED] prompt");
+      expect(inspectionBody.inferenceRequest.outputPreview).toBe("assistant [REDACTED] response");
+      expect(inspectionBody.inferenceRequest.rawRequestJson).toBeNull();
+      expect(inspectionBody.inferenceRequest.rawResponseJson).toBeNull();
+    } finally {
+      await rm(customDir, { recursive: true, force: true });
+    }
+  });
+
+  it("GET /inference-requests/:id persists raw payloads only when explicitly enabled", async () => {
+    const customSdk = createAiSdk([
+      {
+        name: "openrouter",
+        defaultModel: "openai/gpt-4o",
+        complete: async () => "unused",
+        async *stream(messages, options, telemetry) {
+          telemetry?.onRawRequest?.({ providerBody: { messages, options } });
+          yield { type: "response_start" } as const;
+          telemetry?.onRawResponse?.({ providerChunk: { id: "chunk-1", delta: "raw " } });
+          yield { type: "text_delta", text: "raw " } as const;
+          telemetry?.onRawResponse?.({ providerChunk: { id: "chunk-2", delta: "capture response" } });
+          yield { type: "text_delta", text: "capture response" } as const;
+          yield { type: "usage", usage: { totalTokens: 7 } } as const;
+          yield { type: "request_end" } as const;
+        },
+      },
+    ]);
+    const customDir = await mkdtemp(join(tmpdir(), "tardis-server-raw-capture-"));
+    const customApp = await createApp({
+      databaseUrl: `file:${join(customDir, "test.db")}`,
+      aiSdk: customSdk,
+      model: "openai/gpt-4o",
+      telemetry: {
+        captureRawPayloads: true,
+      },
+    });
+
+    try {
+      const createRes = await customApp.request("/conversations", { method: "POST" });
+      const { conversation } = await json(createRes);
+
+      const msgRes = await customApp.request(`/conversations/${conversation.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "raw capture prompt" }),
+      });
+
+      expect(msgRes.status).toBe(201);
+      const { inferenceRequest } = await json(msgRes);
+
+      const inspectionRes = await customApp.request(`/inference-requests/${inferenceRequest.id}`);
+      expect(inspectionRes.status).toBe(200);
+
+      const inspectionBody = await json(inspectionRes);
+      expect(inspectionBody.inferenceRequest.rawRequestJson).toEqual(expect.any(String));
+      expect(inspectionBody.inferenceRequest.rawResponseJson).toEqual(expect.any(String));
+
+      const rawRequest = JSON.parse(inspectionBody.inferenceRequest.rawRequestJson);
+      const rawResponse = JSON.parse(inspectionBody.inferenceRequest.rawResponseJson);
+
+      expect(rawRequest).toMatchObject({
+        providerBody: {
+          messages: [{ role: "user", content: "raw capture prompt" }],
+          options: { model: "openai/gpt-4o" },
+        },
+      });
+      expect(rawResponse).toMatchObject({
+        chunks: [
+          { providerChunk: { id: "chunk-1", delta: "raw " } },
+          { providerChunk: { id: "chunk-2", delta: "capture response" } },
+        ],
+      });
+    } finally {
+      await rm(customDir, { recursive: true, force: true });
+    }
+  });
+
   it("GET /inference-requests/:id/metrics returns latency metrics for an Inference Request", async () => {
     const createRes = await app.request("/conversations", { method: "POST" });
     const { conversation } = await json(createRes);

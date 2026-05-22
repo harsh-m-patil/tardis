@@ -1,3 +1,5 @@
 # Single SQLite database for chat and telemetry
 
 The project will store conversations, messages, turns, inference requests, and inference events in a single SQLite database shared by the runtime and telemetry flows. We chose this because the assignment favors pragmatic tradeoffs and a unified store makes correlation, local development, demos, and debugging far simpler, even though a larger production system might separate operational telemetry storage later.
+
+Telemetry inspection data lives alongside the runtime state in that same database. Each Inference Request persists safe input/output previews by default so maintainers can inspect behavior without reading provider-native logs. Preview redaction is applied before persistence, and raw provider request/response payload capture remains opt-in for debugging so the default storage path stays safe.

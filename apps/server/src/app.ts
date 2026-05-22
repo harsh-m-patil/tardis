@@ -4,10 +4,12 @@ import {
   createConversation,
   createDb,
   getConversation,
+  getInferenceRequestInspection,
   getInferenceRequestMetrics,
   listConversations,
   listMessages,
   migrate,
+  type TelemetryConfig,
 } from "@tardis/db";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -18,6 +20,7 @@ export async function createApp(options?: {
   corsOrigin?: string;
   aiSdk?: AiSdk;
   model?: string;
+  telemetry?: TelemetryConfig;
 }) {
   const app = new Hono();
   const db = createDb(options?.databaseUrl);
@@ -79,15 +82,25 @@ export async function createApp(options?: {
     const { content } = await c.req.json<{ content: string }>();
 
     try {
-      const result = await continueConversation(db, conversationId, content, {
-        provider: providerName,
-        model,
-        stream: (messages) =>
-          aiSdk.stream(messages, {
-            provider: providerName,
-            model,
-          }),
-      });
+      const result = await continueConversation(
+        db,
+        conversationId,
+        content,
+        {
+          provider: providerName,
+          model,
+          stream: (messages, telemetry) =>
+            aiSdk.stream(messages, {
+              provider: providerName,
+              model,
+              onRawRequest: telemetry?.onRawRequest,
+              onRawResponse: telemetry?.onRawResponse,
+            }),
+        },
+        {
+          telemetry: options?.telemetry,
+        },
+      );
 
       if (!result) {
         return c.json({ error: "Conversation not found" }, 404);
@@ -99,6 +112,17 @@ export async function createApp(options?: {
       console.error("Inference failed", error);
       return c.json({ error: "Inference failed", details: message }, 500);
     }
+  });
+
+  app.get("/inference-requests/:id", async (c) => {
+    const inferenceRequestId = c.req.param("id");
+    const inspection = await getInferenceRequestInspection(db, inferenceRequestId);
+
+    if (!inspection) {
+      return c.json({ error: "Inference Request not found" }, 404);
+    }
+
+    return c.json(inspection);
   });
 
   app.get("/inference-requests/:id/metrics", async (c) => {
@@ -137,13 +161,16 @@ export async function createApp(options?: {
             {
               provider: providerName,
               model,
-              stream: (messages) =>
+              stream: (messages, telemetry) =>
                 aiSdk.stream(messages, {
                   provider: providerName,
                   model,
+                  onRawRequest: telemetry?.onRawRequest,
+                  onRawResponse: telemetry?.onRawResponse,
                 }),
             },
             {
+              telemetry: options?.telemetry,
               onTextChunk: async (chunk) => {
                 push({ type: "assistant_delta", delta: chunk });
               },

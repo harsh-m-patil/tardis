@@ -89,6 +89,15 @@ tardis/
 │   └── ai/          # Provider-agnostic AI SDK
 ```
 
+## Telemetry Inspection
+
+The runtime API persists canonical telemetry for each `Inference Request`.
+
+- `GET /inference-requests/:id` returns the persisted request record, structured canonical events, and an inspection summary
+- `GET /inference-requests/:id/metrics` returns derived latency metrics
+- safe `inputPreview` / `outputPreview` fields are stored by default
+- raw request/response payloads are stored only when telemetry raw capture is explicitly enabled, using provider-boundary hooks when available
+
 ## Available Scripts
 
 - `pnpm run dev`: Start all applications in development mode

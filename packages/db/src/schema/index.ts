@@ -68,6 +68,8 @@ export const inferenceRequests = sqliteTable("inference_requests", {
     .default("pending"),
   inputPreview: text("input_preview"),
   outputPreview: text("output_preview"),
+  rawRequestJson: text("raw_request_json"),
+  rawResponseJson: text("raw_response_json"),
   startedAt: text("started_at").notNull(),
   endedAt: text("ended_at"),
 });

@@ -7,12 +7,17 @@ export type ChatMessage = {
   content: string;
 };
 
+export type InferenceTelemetryHooks = {
+  onRawRequest?: (payload: unknown) => void;
+  onRawResponse?: (payload: unknown) => void;
+};
+
 export type CompleteOptions = {
   provider: string;
   model?: string;
   temperature?: number;
   maxTokens?: number;
-};
+} & InferenceTelemetryHooks;
 
 export type ProviderCompleteOptions = {
   model: string;
@@ -36,8 +41,16 @@ export type StreamEvent =
 export type ProviderAdapter = {
   name: string;
   defaultModel: string;
-  complete: (messages: ChatMessage[], options: ProviderCompleteOptions) => Promise<string>;
-  stream?: (messages: ChatMessage[], options: ProviderCompleteOptions) => AsyncIterable<StreamEvent>;
+  complete: (
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    telemetry?: InferenceTelemetryHooks,
+  ) => Promise<string>;
+  stream?: (
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    telemetry?: InferenceTelemetryHooks,
+  ) => AsyncIterable<StreamEvent>;
 };
 
 export type ProviderRegistry = {
@@ -96,7 +109,10 @@ export function createAiSdk(initialProviders: ProviderAdapter[] = []): AiSdk {
     async complete(messages, options) {
       const provider = resolveProvider(options);
 
-      return provider.complete(messages, toProviderOptions(provider, options));
+      return provider.complete(messages, toProviderOptions(provider, options), {
+        onRawRequest: options.onRawRequest,
+        onRawResponse: options.onRawResponse,
+      });
     },
     async *stream(messages, options) {
       const provider = resolveProvider(options);
@@ -106,7 +122,10 @@ export function createAiSdk(initialProviders: ProviderAdapter[] = []): AiSdk {
         console.warn(
           `[ai-sdk] Provider '${provider.name}' does not implement stream(); falling back to complete() (non-token streaming).`,
         );
-        const content = await provider.complete(messages, providerOptions);
+        const content = await provider.complete(messages, providerOptions, {
+          onRawRequest: options.onRawRequest,
+          onRawResponse: options.onRawResponse,
+        });
         yield { type: "response_start" } as const;
         if (content.length > 0) {
           yield { type: "first_token" } as const;
@@ -122,7 +141,10 @@ export function createAiSdk(initialProviders: ProviderAdapter[] = []): AiSdk {
       let sawUsage = false;
       let sawRequestEnd = false;
 
-      for await (const event of provider.stream(messages, providerOptions)) {
+      for await (const event of provider.stream(messages, providerOptions, {
+        onRawRequest: options.onRawRequest,
+        onRawResponse: options.onRawResponse,
+      })) {
         if (event.type === "response_start") {
           sawResponseStart = true;
           yield event;
@@ -201,7 +223,7 @@ export function createOpenAICompatibleAdapter(options: OpenAICompatibleAdapterOp
   return {
     name: options.name,
     defaultModel: options.defaultModel,
-    async complete(messages, config) {
+    async complete(messages, config, telemetry) {
       const apiKey = options.apiKey ?? process.env[options.apiKeyEnvVar ?? "OPENAI_API_KEY"];
 
       if (!apiKey) {
@@ -215,12 +237,14 @@ export function createOpenAICompatibleAdapter(options: OpenAICompatibleAdapterOp
         fetch: options.fetchFn,
       });
 
-      const completion = await client.chat.completions.create({
+      const requestBody = {
         model: config.model,
         messages: messages.map((message) => ({ role: message.role, content: message.content })),
         temperature: config.temperature,
         max_tokens: config.maxTokens,
-      });
+      };
+      telemetry?.onRawRequest?.(requestBody);
+      const completion = await client.chat.completions.create(requestBody);
 
       const content = completion.choices?.[0]?.message?.content;
 
@@ -228,9 +252,10 @@ export function createOpenAICompatibleAdapter(options: OpenAICompatibleAdapterOp
         throw new Error("OpenAI-compatible response missing assistant content");
       }
 
+      telemetry?.onRawResponse?.(completion);
       return content;
     },
-    async *stream(messages, config) {
+    async *stream(messages, config, telemetry) {
       const apiKey = options.apiKey ?? process.env[options.apiKeyEnvVar ?? "OPENAI_API_KEY"];
 
       if (!apiKey) {
@@ -249,16 +274,21 @@ export function createOpenAICompatibleAdapter(options: OpenAICompatibleAdapterOp
       let sawFirstToken = false;
       let usage: InferenceUsage | undefined;
 
-      const stream = await client.chat.completions.create({
+      const requestBody = {
         model: config.model,
         messages: messages.map((message) => ({ role: message.role, content: message.content })),
         temperature: config.temperature,
         max_tokens: config.maxTokens,
         stream: true,
         stream_options: { include_usage: true },
-      });
+      };
+      telemetry?.onRawRequest?.(requestBody);
+      const stream = (await client.chat.completions.create(requestBody)) as AsyncIterable<
+        OpenAI.Chat.Completions.ChatCompletionChunk
+      >;
 
       for await (const chunk of stream) {
+        telemetry?.onRawResponse?.(chunk);
         if (chunk.usage) {
           usage = {
             inputTokens: chunk.usage.prompt_tokens ?? undefined,
