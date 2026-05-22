@@ -10,7 +10,7 @@ import { Textarea } from "@tardis/ui/components/textarea";
 
 import { type Message, continueConversationStream, listMessages } from "@/lib/api";
 import {
-  deriveConversationTitle,
+  derivePendingConversationTitle,
   setPendingConversationTitle,
 } from "@/lib/conversation-titles";
 import { consumePendingMessage } from "@/lib/pending-message";
@@ -81,7 +81,7 @@ function ConversationPage() {
   async function sendMessage(content: string) {
     const isFirstUserMessage = serverMessages.length === 0 && optimisticMessages.length === 0;
     if (isFirstUserMessage) {
-      setPendingConversationTitle(id, deriveConversationTitle(content));
+      setPendingConversationTitle(id, derivePendingConversationTitle(content));
     }
 
     const optimisticUserMsg: OptimisticMessage = {
@@ -135,9 +135,16 @@ function ConversationPage() {
       );
 
       await router.invalidate();
+
+      if (isFirstUserMessage) {
+        setPendingConversationTitle(id, null);
+      }
     } catch {
       toast.error("Failed to send message");
       setOptimisticMessages([]);
+      if (isFirstUserMessage) {
+        setPendingConversationTitle(id, null);
+      }
     } finally {
       setSending(false);
       textareaRef.current?.focus();

@@ -31,18 +31,32 @@ export type ContinueConversationOptions = {
   onTextChunk?: (chunk: string) => void | Promise<void>;
 };
 
-export function deriveConversationTitle(content: string, maxLength = 48) {
-  const normalized = content.trim().replace(/\s+/g, " ");
+export function deriveConversationTitle(content: string, maxWords = 6, maxLength = 48) {
+  const normalized = content
+    .trim()
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .replace(/[#>*_~\-]+/g, " ")
+    .replace(/\s+/g, " ");
 
   if (!normalized) {
     return "New conversation";
   }
 
-  if (normalized.length <= maxLength) {
-    return normalized;
+  const words = normalized.split(" ").filter(Boolean);
+  const summary = words.slice(0, maxWords).join(" ");
+
+  if (!summary) {
+    return "New conversation";
   }
 
-  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+  const title = summary.charAt(0).toUpperCase() + summary.slice(1);
+
+  if (words.length > maxWords || title.length > maxLength) {
+    return `${title.slice(0, maxLength - 1).trimEnd()}…`;
+  }
+
+  return title;
 }
 
 export function createDb(databaseUrl?: string) {

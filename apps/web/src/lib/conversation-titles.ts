@@ -1,7 +1,7 @@
 const listeners = new Set<() => void>();
 const pendingTitles = new Map<string, string>();
 
-export function deriveConversationTitle(content: string, maxLength = 48) {
+export function derivePendingConversationTitle(content: string, maxLength = 48) {
   const normalized = content.trim().replace(/\s+/g, " ");
 
   if (!normalized) {
