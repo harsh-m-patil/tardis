@@ -1,13 +1,14 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ArrowUp, Bot, User } from "lucide-react";
 
 import { Button } from "@tardis/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@tardis/ui/components/card";
-import { Input } from "@tardis/ui/components/input";
 import { Skeleton } from "@tardis/ui/components/skeleton";
+import { Textarea } from "@tardis/ui/components/textarea";
 
-import { continueConversation, listMessages } from "@/lib/api";
+import { type Message, continueConversation, listMessages } from "@/lib/api";
+import { consumePendingMessage } from "@/lib/pending-message";
 
 export const Route = createFileRoute("/conversations/$id")({
   loader: ({ params }) => listMessages(params.id),
@@ -17,93 +18,208 @@ export const Route = createFileRoute("/conversations/$id")({
 
 function ConversationLoading() {
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-6">
-      <div className="mb-4 flex items-center justify-between">
-        <Skeleton className="h-6 w-40" />
-      </div>
-      <div className="grid gap-3">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 w-full" />
+    <div className="flex h-full flex-col">
+      <div className="flex-1 space-y-6 p-8">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="space-y-2">
+            <Skeleton className="h-4 w-20 rounded-md" />
+            <Skeleton className="h-16 w-3/4 rounded-xl" />
+          </div>
         ))}
       </div>
     </div>
   );
 }
 
+type OptimisticMessage = {
+  id: string;
+  role: Message["role"];
+  content: string;
+  createdAt: string;
+  pending?: boolean;
+};
+
 function ConversationPage() {
   const { id } = Route.useParams();
-  const messages = Route.useLoaderData();
+  const serverMessages = Route.useLoaderData();
   const router = useRouter();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const initialSent = useRef(false);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const content = draft.trim();
+  const allMessages: OptimisticMessage[] = [
+    ...serverMessages,
+    ...optimisticMessages,
+  ];
 
-    if (!content) {
-      return;
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [allMessages.length]);
+
+  useEffect(() => {
+    setOptimisticMessages([]);
+  }, [serverMessages]);
+
+  useEffect(() => {
+    if (!initialSent.current && serverMessages.length === 0) {
+      const pending = consumePendingMessage();
+      if (pending) {
+        initialSent.current = true;
+        sendMessage(pending);
+      }
     }
+  }, []);
 
+  async function sendMessage(content: string) {
+    const optimisticUserMsg: OptimisticMessage = {
+      id: `optimistic-user-${Date.now()}`,
+      role: "user",
+      content,
+      createdAt: new Date().toISOString(),
+    };
+
+    const optimisticAssistantMsg: OptimisticMessage = {
+      id: `optimistic-assistant-${Date.now()}`,
+      role: "assistant",
+      content: "",
+      createdAt: new Date().toISOString(),
+      pending: true,
+    };
+
+    setOptimisticMessages([optimisticUserMsg, optimisticAssistantMsg]);
     setSending(true);
+
     try {
       await continueConversation(id, content);
-      setDraft("");
       await router.invalidate();
     } catch {
       toast.error("Failed to send message");
+      setOptimisticMessages([]);
     } finally {
       setSending(false);
+      textareaRef.current?.focus();
+    }
+  }
+
+  async function handleSubmit() {
+    const content = draft.trim();
+    if (!content || sending) return;
+    setDraft("");
+    await sendMessage(content);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
     }
   }
 
   return (
-    <div className="container mx-auto flex h-full w-full max-w-5xl flex-col px-4 py-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-medium">Conversation</h1>
-        <span className="text-muted-foreground text-xs">{id}</span>
+    <div className="flex h-full flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl px-6 py-8">
+          {allMessages.length === 0 ? (
+            <EmptyConversation />
+          ) : (
+            <div className="space-y-6">
+              {allMessages.map((message) => (
+                <MessageBlock key={message.id} message={message} />
+              ))}
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-28">
-        {messages.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No messages yet. Send one to start the conversation.</p>
-        ) : (
-          <div className="grid gap-3">
-            {messages.map((message) => (
-              <Card
-                key={message.id}
-                size="sm"
-                className={message.role === "user" ? "border-l-2 border-l-primary" : ""}
-              >
-                <CardHeader>
-                  <CardTitle className="capitalize">{message.role}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-2">
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                    <span className="text-muted-foreground text-[11px]">
-                      {new Date(message.createdAt).toLocaleString()}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+      <div className="border-t border-border/50 bg-background">
+        <div className="mx-auto max-w-3xl px-6 py-4">
+          <div className="relative">
+            <Textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Send a message..."
+              disabled={sending}
+              className="min-h-12 max-h-40 resize-none rounded-xl border-border/50 bg-muted/30 pr-12 pl-4 pt-3 text-sm focus-visible:border-foreground/20 focus-visible:ring-0"
+              rows={1}
+            />
+            <Button
+              size="icon"
+              onClick={handleSubmit}
+              disabled={sending || !draft.trim()}
+              className="absolute right-2.5 bottom-2.5 size-7 rounded-lg"
+            >
+              <ArrowUp className="size-3.5" />
+            </Button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MessageBlock({ message }: { message: OptimisticMessage }) {
+  const isUser = message.role === "user";
+
+  if (message.pending) {
+    return (
+      <div className="flex gap-3">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-foreground/5 border border-border/50">
+          <Bot className="size-3.5 text-foreground/70" />
+        </div>
+        <div className="pt-0.5">
+          <TypingIndicator />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-3">
+      <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-foreground/5 border border-border/50">
+        {isUser ? (
+          <User className="size-3.5 text-foreground/70" />
+        ) : (
+          <Bot className="size-3.5 text-foreground/70" />
         )}
       </div>
+      <div className="min-w-0 flex-1 pt-0.5">
+        <p className="mb-1 text-xs font-medium text-muted-foreground">
+          {isUser ? "You" : "Assistant"}
+        </p>
+        <div className="prose prose-sm dark:prose-invert max-w-none">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      <div className="sticky bottom-0 border-t bg-background/95 pt-4 pb-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Send a message"
-            disabled={sending}
-          />
-          <Button type="submit" disabled={sending || draft.trim().length === 0}>
-            {sending ? "Sending..." : "Send"}
-          </Button>
-        </form>
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-1.5 py-2">
+      <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0ms]" />
+      <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:150ms]" />
+      <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:300ms]" />
+    </div>
+  );
+}
+
+function EmptyConversation() {
+  return (
+    <div className="flex h-[60vh] flex-col items-center justify-center gap-4">
+      <div className="flex size-12 items-center justify-center rounded-2xl bg-foreground/5 border border-border/50">
+        <Bot className="size-6 text-muted-foreground" />
+      </div>
+      <div className="text-center">
+        <p className="text-sm text-muted-foreground">
+          Send a message to start the conversation.
+        </p>
       </div>
     </div>
   );
