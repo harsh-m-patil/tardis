@@ -1,5 +1,5 @@
 {
-  "extends": "@ai/config/tsconfig.base.json",
+  "extends": "@tardis/config/tsconfig.base.json",
   "compilerOptions": {
     "declaration": true,
     "declarationMap": true,

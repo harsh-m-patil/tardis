@@ -1,5 +1,5 @@
 {
-  "name": "@ai/db",
+  "name": "@tardis/db",
   "type": "module",
   "exports": {
     ".": {
@@ -17,7 +17,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@ai/env": "workspace:*",
+    "@tardis/env": "workspace:*",
     "@libsql/client": "0.15.15",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.45.1",
@@ -25,7 +25,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@ai/config": "workspace:*",
+    "@tardis/config": "workspace:*",
     "drizzle-kit": "^0.31.8",
     "typescript": "catalog:"
   }

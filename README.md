@@ -1,4 +1,4 @@
-# ai
+# tardis
 
 This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Hono, and more.
 
@@ -68,7 +68,7 @@ npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
 Import shared components like this:
 
 ```tsx
-import { Button } from "@ai/ui/components/button";
+import { Button } from "@tardis/ui/components/button";
 ```
 
 ### Add app-specific blocks
@@ -78,11 +78,11 @@ If you want to add app-specific blocks instead of shared primitives, run the sha
 ## Project Structure
 
 ```
-ai/
+tardis/
 ├── apps/
 │   ├── web/         # Frontend application (React + TanStack Router)
 │   ├── server/      # Backend API (Hono)
-│   └── demo/        # CLI demo for @ai/ai SDK
+│   └── demo/        # CLI demo for @tardis/ai SDK
 ├── packages/
 │   ├── ui/          # Shared shadcn/ui components and styles
 │   ├── db/          # Database schema & queries

@@ -11,16 +11,16 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ai/ai": "workspace:*",
-    "@ai/db": "workspace:*",
-    "@ai/env": "workspace:*",
+    "@tardis/ai": "workspace:*",
+    "@tardis/db": "workspace:*",
+    "@tardis/env": "workspace:*",
     "@hono/node-server": "^1.14.4",
     "dotenv": "catalog:",
     "hono": "^4.8.2",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@ai/config": "workspace:*",
+    "@tardis/config": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "^4.1.7",
     "tsdown": "^0.21.9",

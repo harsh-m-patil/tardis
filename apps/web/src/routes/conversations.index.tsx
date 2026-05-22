@@ -1,9 +1,9 @@
 import { Link, createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { Button } from "@ai/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@ai/ui/components/card";
-import { Skeleton } from "@ai/ui/components/skeleton";
+import { Button } from "@tardis/ui/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@tardis/ui/components/card";
+import { Skeleton } from "@tardis/ui/components/skeleton";
 
 import {
   type Conversation,

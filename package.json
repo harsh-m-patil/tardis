@@ -1,5 +1,5 @@
 {
-  "name": "ai",
+  "name": "tardis",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -12,21 +12,21 @@
     "check-types": "turbo check-types",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F server dev",
-    "db:push": "turbo -F @ai/db db:push",
-    "db:studio": "turbo -F @ai/db db:studio",
-    "db:generate": "turbo -F @ai/db db:generate",
-    "db:migrate": "turbo -F @ai/db db:migrate",
-    "db:local": "turbo -F @ai/db db:local",
+    "db:push": "turbo -F @tardis/db db:push",
+    "db:studio": "turbo -F @tardis/db db:studio",
+    "db:generate": "turbo -F @tardis/db db:generate",
+    "db:migrate": "turbo -F @tardis/db db:migrate",
+    "db:local": "turbo -F @tardis/db db:local",
     "check": "ultracite check",
     "fix": "ultracite fix"
   },
   "dependencies": {
-    "@ai/env": "workspace:*",
+    "@tardis/env": "workspace:*",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@ai/config": "workspace:*",
+    "@tardis/config": "workspace:*",
     "@biomejs/biome": "2.4.15",
     "@types/node": "catalog:",
     "turbo": "^2.8.12",

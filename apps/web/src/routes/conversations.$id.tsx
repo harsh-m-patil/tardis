@@ -2,10 +2,10 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@ai/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@ai/ui/components/card";
-import { Input } from "@ai/ui/components/input";
-import { Skeleton } from "@ai/ui/components/skeleton";
+import { Button } from "@tardis/ui/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@tardis/ui/components/card";
+import { Input } from "@tardis/ui/components/input";
+import { Skeleton } from "@tardis/ui/components/skeleton";
 
 import { continueConversation, listMessages } from "@/lib/api";
 

@@ -1,4 +1,4 @@
-import { cn } from "@ai/ui/lib/utils";
+import { cn } from "@tardis/ui/lib/utils";
 import * as React from "react";
 
 function Label({ className, ...props }: React.ComponentProps<"label">) {

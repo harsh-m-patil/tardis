@@ -1,4 +1,4 @@
-import { env } from "@ai/env/web";
+import { env } from "@tardis/env/web";
 
 const BASE_URL = env.VITE_SERVER_URL;
 

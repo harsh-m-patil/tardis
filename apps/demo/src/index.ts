@@ -1,6 +1,6 @@
-import { createAiSdk, createOpenAICompatibleAdapter } from "@ai/ai";
+import { createAiSdk, createOpenAICompatibleAdapter } from "@tardis/ai";
 
-const prompt = process.argv.slice(2).filter((arg) => arg !== "--").join(" ") || "Explain ai in 5 words";
+const prompt = process.argv.slice(2).filter((arg) => arg !== "--").join(" ") || "Explain AI in 5 words";
 
 const sdk = createAiSdk([
   createOpenAICompatibleAdapter({

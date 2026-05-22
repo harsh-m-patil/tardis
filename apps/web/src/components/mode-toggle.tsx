@@ -1,10 +1,10 @@
-import { Button } from "@ai/ui/components/button";
+import { Button } from "@tardis/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@ai/ui/components/dropdown-menu";
+} from "@tardis/ui/components/dropdown-menu";
 import { Moon, Sun } from "lucide-react";
 
 import { useTheme } from "@/components/theme-provider";

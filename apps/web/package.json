@@ -11,8 +11,8 @@
     "check-types": "vite build && tsc --noEmit"
   },
   "dependencies": {
-    "@ai/env": "workspace:*",
-    "@ai/ui": "workspace:*",
+    "@tardis/env": "workspace:*",
+    "@tardis/ui": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-router": "^1.168.22",
@@ -25,7 +25,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@ai/config": "workspace:*",
+    "@tardis/config": "workspace:*",
     "@tanstack/react-router-devtools": "^1.166.13",
     "@tanstack/router-plugin": "^1.167.22",
     "@types/node": "catalog:",

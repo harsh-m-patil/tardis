@@ -12,11 +12,11 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@ai/ui/components",
-    "utils": "@ai/ui/lib/utils",
-    "hooks": "@ai/ui/hooks",
-    "lib": "@ai/ui/lib",
-    "ui": "@ai/ui/components"
+    "components": "@tardis/ui/components",
+    "utils": "@tardis/ui/lib/utils",
+    "hooks": "@tardis/ui/hooks",
+    "lib": "@tardis/ui/lib",
+    "ui": "@tardis/ui/components"
   },
   "menuColor": "default",
   "menuAccent": "subtle",

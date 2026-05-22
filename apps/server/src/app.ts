@@ -1,5 +1,5 @@
-import { createAiSdk, createOpenAICompatibleAdapter, type AiSdk } from "@ai/ai";
-import { createDb, createConversation, listConversations, listMessages, continueConversation, migrate } from "@ai/db";
+import { createAiSdk, createOpenAICompatibleAdapter, type AiSdk } from "@tardis/ai";
+import { createDb, createConversation, listConversations, listMessages, continueConversation, migrate } from "@tardis/db";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";

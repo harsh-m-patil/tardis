@@ -1,4 +1,4 @@
-import { Toaster } from "@ai/ui/components/sonner";
+import { Toaster } from "@tardis/ui/components/sonner";
 import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
@@ -14,11 +14,11 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
     meta: [
       {
-        title: "ai",
+        title: "tardis",
       },
       {
         name: "description",
-        content: "ai is a web application",
+        content: "tardis is a web application",
       },
     ],
     links: [

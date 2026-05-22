@@ -1,5 +1,5 @@
 {
-  "name": "@ai/env",
+  "name": "@tardis/env",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@ai/config": "workspace:*",
+    "@tardis/config": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

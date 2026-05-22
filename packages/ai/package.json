@@ -1,5 +1,5 @@
 {
-  "name": "@ai/ai",
+  "name": "@tardis/ai",
   "type": "module",
   "exports": {
     ".": {
@@ -17,7 +17,7 @@
     "openai": "^6.0.0"
   },
   "devDependencies": {
-    "@ai/config": "workspace:*",
+    "@tardis/config": "workspace:*",
     "@types/node": "catalog:",
     "openai": "^6.0.0",
     "typescript": "catalog:",

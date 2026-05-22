@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@ai/ui/lib/utils";
+import { cn } from "@tardis/ui/lib/utils";
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { ChevronRightIcon, CheckIcon } from "lucide-react";
 import * as React from "react";

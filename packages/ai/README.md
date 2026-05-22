@@ -1,4 +1,4 @@
-# @ai/ai
+# @tardis/ai
 
 Provider-agnostic AI SDK with a buffered `complete()` API.
 
@@ -7,13 +7,13 @@ Provider-agnostic AI SDK with a buffered `complete()` API.
 ```json
 {
   "dependencies": {
-    "@ai/ai": "workspace:*",
+    "@tardis/ai": "workspace:*",
     "openai": "^6"
   }
 }
 ```
 
-`openai` is a peer dependency of `@ai/ai`.
+`openai` is a peer dependency of `@tardis/ai`.
 
 ## Public API
 
@@ -38,7 +38,7 @@ type ProviderAdapter = {
 ## Quick start (custom adapter)
 
 ```ts
-import { createAiSdk, type ProviderAdapter } from "@ai/ai";
+import { createAiSdk, type ProviderAdapter } from "@tardis/ai";
 
 const testAdapter: ProviderAdapter = {
   name: "test",
@@ -56,7 +56,7 @@ const output = await sdk.complete([{ role: "user", content: "Hi" }], {
 ## OpenAI-compatible adapter
 
 ```ts
-import { createAiSdk, createOpenAICompatibleAdapter } from "@ai/ai";
+import { createAiSdk, createOpenAICompatibleAdapter } from "@tardis/ai";
 
 const openai = createOpenAICompatibleAdapter({
   name: "openai",

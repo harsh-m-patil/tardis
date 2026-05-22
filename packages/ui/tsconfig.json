@@ -1,10 +1,10 @@
 {
-  "extends": "@ai/config/tsconfig.base.json",
+  "extends": "@tardis/config/tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "paths": {
-      "@ai/ui/*": ["./src/*"]
+      "@tardis/ui/*": ["./src/*"]
     },
     "strictNullChecks": true
   },

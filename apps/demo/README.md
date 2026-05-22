@@ -1,4 +1,4 @@
-# Demo app for `@ai/ai`
+# Demo app for `@tardis/ai`
 
 Minimal CLI demo that uses the new provider-agnostic SDK.
 

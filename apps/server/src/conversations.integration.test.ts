@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createAiSdk } from "@ai/ai";
+import { createAiSdk } from "@tardis/ai";
 
 import { createApp } from "./app";
 
@@ -22,7 +22,7 @@ describe("Conversation API", () => {
   ]);
 
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), "ai-server-test-"));
+    directory = await mkdtemp(join(tmpdir(), "tardis-server-test-"));
     const databaseUrl = `file:${join(directory, "test.db")}`;
     app = await createApp({ databaseUrl, aiSdk: testSdk });
   });
@@ -131,7 +131,7 @@ describe("Conversation API", () => {
         complete: async () => "Hello from custom provider!",
       },
     ]);
-    const customDir = await mkdtemp(join(tmpdir(), "ai-server-custom-"));
+    const customDir = await mkdtemp(join(tmpdir(), "tardis-server-custom-"));
     const customApp = await createApp({
       databaseUrl: `file:${join(customDir, "test.db")}`,
       aiSdk: customSdk,
@@ -166,7 +166,7 @@ describe("Conversation API", () => {
         },
       },
     ]);
-    const failingDir = await mkdtemp(join(tmpdir(), "ai-server-failing-"));
+    const failingDir = await mkdtemp(join(tmpdir(), "tardis-server-failing-"));
     const failingApp = await createApp({
       databaseUrl: `file:${join(failingDir, "test.db")}`,
       aiSdk: failingSdk,
