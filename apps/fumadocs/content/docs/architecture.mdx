@@ -1,0 +1,45 @@
+---
+title: Architecture
+description: How the Runtime API, AI SDK, and database fit together.
+---
+
+This system has three runtime boundaries:
+
+- **Runtime API** (`apps/server`) owns **Conversation** and **Turn** lifecycle.
+- **AI SDK** (`packages/ai`) executes provider calls and emits canonical stream events.
+- **DB/Ingestion layer** (`packages/db`) persists **Messages**, **Turns**, **Inference Requests**, and canonical event telemetry.
+
+## Component diagram
+
+```mermaid
+flowchart LR
+  Client[Client / Web App] -->|POST /conversations/:id/messages| Runtime[Runtime API\napps/server]
+  Runtime -->|stream(messages, options)| SDK[AI SDK\npackages/ai]
+  SDK -->|provider request| Provider[OpenAI-compatible Provider]
+  Provider -->|chunks / response| SDK
+  SDK -->|canonical events| Runtime
+  Runtime -->|persist turn + telemetry| DB[(SQLite via packages/db)]
+  Runtime -->|201 result + stream deltas| Client
+```
+
+## Turn and Inference Request relationship
+
+```text
+Conversation
+  ├─ Message (user)
+  ├─ Turn
+  │   ├─ Inference Request #1
+  │   ├─ Inference Request #2 (optional retry/fallback)
+  │   └─ Committed Assistant Message (exactly one)
+  └─ Message (assistant, committed)
+```
+
+- A **Turn** can include multiple **Inference Requests**.
+- Only one **Committed Assistant Message** is attached to the Turn.
+- Canonical stream events (`response_start`, `first_token`, `text_delta`, `usage`, `request_end`) describe each inference lifecycle.
+
+## Why this split
+
+- Runtime concerns (Conversation state, retries, persistence) stay out of the SDK.
+- Provider concerns (request/response handling, streaming quirks) stay in adapters.
+- Telemetry is consistent because canonical events are normalized before persistence.

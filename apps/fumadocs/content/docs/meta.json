@@ -1,0 +1,12 @@
+{
+  "title": "Tardis Docs",
+  "pages": [
+    "index",
+    "quickstart",
+    "architecture",
+    "ai-sdk",
+    "sdk-examples",
+    "ingestion-pipeline",
+    "runtime-api"
+  ]
+}

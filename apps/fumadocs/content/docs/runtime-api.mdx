@@ -1,0 +1,125 @@
+---
+title: Runtime API
+description: HTTP endpoints for Conversations and Inference Request inspection.
+---
+
+The **Runtime API** is implemented in `apps/server/src/app.ts`.
+
+It owns Conversation/Turn lifecycle and delegates inference to the AI SDK.
+
+## Endpoints
+
+### Conversations
+
+- `GET /conversations`
+- `POST /conversations`
+- `GET /conversations/:id/messages`
+- `POST /conversations/:id/messages`
+- `POST /conversations/:id/messages/stream` (NDJSON)
+
+### Inference Request inspection
+
+- `GET /inference-requests`
+- `GET /inference-requests/:id`
+- `GET /inference-requests/:id/metrics`
+
+## Example: continue a Conversation
+
+Request:
+
+```http
+POST /conversations/{conversationId}/messages
+Content-Type: application/json
+
+{"content":"Inspect this request"}
+```
+
+Response (`201`):
+
+```json
+{
+  "turn": {
+    "id": "turn_123",
+    "conversationId": "conv_123",
+    "status": "completed",
+    "committedAssistantMessageId": "msg_assistant_123"
+  },
+  "message": {
+    "id": "msg_assistant_123",
+    "conversationId": "conv_123",
+    "role": "assistant",
+    "content": "I am a deterministic test response."
+  },
+  "inferenceRequest": {
+    "id": "inf_123",
+    "turnId": "turn_123",
+    "provider": "openrouter",
+    "model": "openai/gpt-4o-mini",
+    "status": "completed",
+    "inputPreview": "Inspect this request",
+    "outputPreview": "I am a deterministic test response."
+  }
+}
+```
+
+## Example: stream assistant output
+
+`POST /conversations/{conversationId}/messages/stream` returns newline-delimited JSON events:
+
+```json
+{"type":"assistant_delta","delta":"Hello"}
+{"type":"assistant_delta","delta":" world"}
+{"type":"completed","result":{"turn":{},"message":{},"inferenceRequest":{}}}
+```
+
+## Example: inspect an Inference Request
+
+Request:
+
+```http
+GET /inference-requests/{inferenceRequestId}
+```
+
+Response (`200`, abbreviated):
+
+```json
+{
+  "inferenceRequest": {
+    "id": "inf_123",
+    "status": "completed",
+    "inputPreview": "Inspect this request",
+    "outputPreview": "I am a deterministic test response.",
+    "rawRequestJson": null,
+    "rawResponseJson": null
+  },
+  "events": [
+    { "sequenceNumber": 1, "type": "response_start", "payload": null },
+    { "sequenceNumber": 2, "type": "first_token", "payload": null },
+    { "sequenceNumber": 3, "type": "usage", "payload": {} },
+    { "sequenceNumber": 4, "type": "request_end", "payload": null }
+  ],
+  "summary": {
+    "eventCount": 4,
+    "firstTokenLatencyMs": 12,
+    "totalDurationMs": 25,
+    "usage": {}
+  }
+}
+```
+
+`GET /inference-requests/:id/metrics` returns the compact latency view:
+
+```json
+{
+  "inferenceRequestId": "inf_123",
+  "firstTokenLatencyMs": 12,
+  "totalDurationMs": 25,
+  "eventCount": 4
+}
+```
+
+## Error behavior
+
+- unknown Conversation on message post: `404`
+- unknown Inference Request on inspection/metrics: `404`
+- provider/runtime failure while handling a Turn: `500`

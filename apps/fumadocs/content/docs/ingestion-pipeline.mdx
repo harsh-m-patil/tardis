@@ -1,0 +1,64 @@
+---
+title: Ingestion Pipeline
+description: How Runtime stream events become durable Inference Request telemetry.
+---
+
+The authoritative ingestion path is `continueConversation(...)` in `packages/db/src/index.ts`.
+
+## What it persists
+
+- `conversations`
+- `messages`
+- `turns`
+- `inference_requests`
+- `inference_events`
+
+All data lands in one SQLite database.
+
+## Continue Conversation sequence
+
+For `POST /conversations/:id/messages` (and `/stream`), the Runtime API calls `continueConversation(...)`.
+
+1. Confirm Conversation exists.
+2. Insert user Message.
+3. If missing, derive and persist Conversation title from first user Message.
+4. Insert pending Turn.
+5. Load Conversation message history as inference input.
+6. Insert pending Inference Request with `inputPreview`.
+7. Stream model output and persist canonical lifecycle events once each with ordered `sequenceNumber`.
+8. Backfill missing `response_start`, `usage`, `request_end`.
+9. On success:
+   - finalize Inference Request (`completed`, `outputPreview`, optional raw JSON)
+   - insert assistant Message
+   - mark Turn `completed` with `committedAssistantMessageId`
+10. On failure:
+   - mark Inference Request and Turn as `failed`
+   - rethrow error to Runtime API
+
+## Telemetry persistence policy
+
+Defaults are intentionally safe:
+
+- `inputPreview` / `outputPreview` are truncated to 200 chars by default
+- optional preview redaction hook can transform or drop preview content
+- raw request/response JSON capture is **off by default**
+- raw capture is enabled only with `telemetry.captureRawPayloads: true`
+
+When raw capture is enabled but provider hooks are absent, fallback request/response payloads are persisted.
+
+## Inspection outputs
+
+`packages/db` exposes:
+
+- `listInferenceRequests()`
+- `getInferenceRequestInspection(id)`
+- `getInferenceRequestMetrics(id)`
+
+Inspection includes parsed canonical events plus summary fields:
+
+- `eventCount`
+- `firstTokenLatencyMs`
+- `totalDurationMs`
+- `usage`
+
+> Note: current persisted canonical events are `response_start`, `first_token`, `usage`, `request_end`. `text_delta` is used to assemble assistant content but is not persisted as an inference event record.

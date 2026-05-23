@@ -1,13 +1,36 @@
 ---
-title: Hello World
-description: Your first document
+title: Tardis Runtime Docs
+description: Practical reference for the AI SDK, ingestion pipeline, and Runtime API.
 ---
 
-Welcome to the docs! You can start writing documents in `/content/docs`.
+This repository is split into three boundaries:
 
-## What is Next?
+- **AI SDK** (`packages/ai`): provider-agnostic inference interface.
+- **Runtime API** (`apps/server`): Conversation + Turn orchestration over HTTP.
+- **DB/Ingestion layer** (`packages/db`): persists Messages, Turns, Inference Requests, and inference lifecycle events.
 
-<Cards>
-  <Card title="Learn more about Next.js" href="https://nextjs.org/docs" />
-  <Card title="Learn more about Fumadocs" href="https://fumadocs.dev" />
-</Cards>
+## Domain model at a glance
+
+- A **Conversation** contains many **Messages** and many **Turns**.
+- A **Turn** starts from one user Message and may execute one or more **Inference Requests**.
+- Each Turn records one **Committed Assistant Message** (the reply shown to the user).
+- An **Inference Request** stores attempt-level telemetry and status.
+
+## Data flow
+
+1. Client calls `POST /conversations/:id/messages` (or `/stream`) on the **Runtime API**.
+2. Runtime persists the user Message and creates a pending Turn.
+3. Runtime builds request context from Conversation Message history.
+4. Runtime invokes `aiSdk.stream(...)`.
+5. Canonical stream events are normalized and persisted as `inference_events`.
+6. Runtime finalizes the Inference Request, writes the Committed Assistant Message, and completes the Turn.
+7. Inspection endpoints expose request/event history and latency metrics.
+
+## Read next
+
+- [Quickstart](./quickstart)
+- [Architecture](./architecture)
+- [AI SDK](./ai-sdk)
+- [SDK Examples](./sdk-examples)
+- [Ingestion Pipeline](./ingestion-pipeline)
+- [Runtime API](./runtime-api)

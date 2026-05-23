@@ -1,0 +1,53 @@
+---
+title: AI SDK
+description: Provider-agnostic inference contract and canonical stream lifecycle.
+---
+
+The **AI SDK** (`packages/ai`) is request-first and provider-agnostic. It does not model Conversations or persist telemetry.
+
+## Public API
+
+- `createAiSdk(initialProviders?)`
+- `registerProvider(provider)`
+- `complete(messages, options)`
+- `stream(messages, options)`
+
+Core types include:
+
+- `ChatMessage`: `{ role: "system" | "user" | "assistant", content: string }`
+- `ProviderAdapter`: requires `name`, `defaultModel`, and `complete(...)`; `stream(...)` is optional
+- `StreamEvent` canonical types:
+  - `response_start`
+  - `first_token`
+  - `text_delta`
+  - `usage`
+  - `request_end`
+
+## Stream normalization behavior
+
+`aiSdk.stream(...)` guarantees canonical lifecycle behavior even when providers are incomplete:
+
+- If a provider lacks `stream()`, SDK falls back to `complete()` and emits:
+  `response_start -> first_token? -> text_delta? -> usage({}) -> request_end`
+- If provider streaming omits canonical events, SDK backfills missing `response_start`, `usage`, and `request_end`.
+- Duplicate `first_token`, `usage`, and `request_end` are deduplicated.
+
+This behavior is verified in `packages/ai/src/sdk.test.ts`.
+
+## Raw payload hooks
+
+`CompleteOptions` and stream options support telemetry hooks:
+
+- `onRawRequest(payload)`
+- `onRawResponse(payload)`
+
+The OpenAI-compatible adapter uses these hooks to forward provider request/chunk payloads to the caller.
+
+## OpenAI-compatible adapter
+
+`createOpenAICompatibleAdapter(...)`:
+
+- uses OpenAI chat completions API
+- normalizes base URL to include `/v1` unless already versioned
+- maps `maxTokens` to `max_tokens`
+- supports buffered (`complete`) and streaming (`stream`) inference

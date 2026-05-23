@@ -1,0 +1,100 @@
+---
+title: Quickstart
+description: Run the Runtime API locally and trace one Turn from request to inspection.
+---
+
+This quickstart runs a local end-to-end flow:
+
+1. start the Runtime API
+2. create a Conversation
+3. send a user message
+4. inspect the resulting Inference Request telemetry
+
+## 1) Install
+
+```bash
+pnpm install
+```
+
+## 2) Configure environment
+
+Create `apps/server/.env`:
+
+```dotenv
+DATABASE_URL=file:local.db
+CORS_ORIGIN=http://localhost:5173
+OPENROUTER_API_KEY=your_key_here
+OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+Notes:
+
+- `OPENROUTER_MODEL` is optional (defaults to `openai/gpt-4o-mini`).
+- `OPENAI_MODEL` is also supported as a fallback model env var.
+
+## 3) Run the Runtime API
+
+```bash
+pnpm dev:server
+```
+
+Server starts on `http://localhost:3000`.
+
+## 4) (Optional) sanity check the SDK demo CLI
+
+This exercises `@tardis/ai` directly, outside the Runtime API:
+
+```bash
+pnpm -F demo start -- "Explain Turn vs Inference Request"
+```
+
+## 5) Create a Conversation
+
+```bash
+curl -s -X POST http://localhost:3000/conversations \
+  -H 'content-type: application/json'
+```
+
+Copy `conversation.id` from the response.
+
+## 6) Continue the Conversation with a user Message
+
+```bash
+curl -s -X POST http://localhost:3000/conversations/<conversationId>/messages \
+  -H 'content-type: application/json' \
+  -d '{"content":"Summarize canonical stream events in one sentence."}'
+```
+
+Response includes:
+
+- `turn` (the completed **Turn**)
+- `message` (the **Committed Assistant Message**)
+- `inferenceRequest` (the persisted **Inference Request** record)
+
+Copy `inferenceRequest.id`.
+
+## 7) Inspect the Inference Request
+
+Full inspection:
+
+```bash
+curl -s http://localhost:3000/inference-requests/<inferenceRequestId>
+```
+
+Latency/summary view:
+
+```bash
+curl -s http://localhost:3000/inference-requests/<inferenceRequestId>/metrics
+```
+
+You should see canonical lifecycle events and derived timing fields (`firstTokenLatencyMs`, `totalDurationMs`).
+
+## 8) (Optional) stream a Turn over NDJSON
+
+```bash
+curl -N -X POST http://localhost:3000/conversations/<conversationId>/messages/stream \
+  -H 'content-type: application/json' \
+  -d '{"content":"Stream this response."}'
+```
+
+Stream emits newline-delimited JSON events like `assistant_delta`, then `completed`.
